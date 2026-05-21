@@ -1,0 +1,30 @@
+# Entorno virtual
+entorno_app_crp/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Variables de entorno
+.env
+
+# Base de datos
+*.db
+
+# Logs
+*.log
+
+# Socket
+*.sock
+
+# Alembic versiones generadas
+alembic/versions/*.py
+
+# VS Code
+.vscode/
+
+# PyCharm
+.idea/
+EOF
