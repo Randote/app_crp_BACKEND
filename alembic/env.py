@@ -1,11 +1,9 @@
 from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool, create_engine
 from alembic import context
 from app.core.config import settings
 from app.database import Base
-from sqlalchemy import create_engine, engine_from_config, pool
-# Importa tus modelos aquí cuando los vayas creando
-# from app.models import usuario
+import app.models
 
 config = context.config
 if config.config_file_name is not None:

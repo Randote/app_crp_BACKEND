@@ -19,12 +19,11 @@ __pycache__/
 # Socket
 *.sock
 
-# Alembic versiones generadas
-alembic/versions/*.py
-
 # VS Code
 .vscode/
 
 # PyCharm
 .idea/
-EOF
+
+# Alembic versiones generadas
+alembic/versions/*.py
