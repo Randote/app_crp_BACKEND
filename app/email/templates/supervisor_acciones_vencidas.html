@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<tr>
+    <td style="padding: 30px; color: #2A2720;">
+        <h2 style="color: #d9534f; margin-top: 0; font-size: 20px;">Alerta de Acciones Vencidas en su Área</h2>
+
+        <p style="margin: 0 0 15px 0;">Estimado/a <strong>{{ nombre }}</strong>,</p>
+
+        <p style="margin: 0 0 20px 0;">Le informamos que las siguientes acciones correctivas bajo su gestión presentan <strong>5 o más días de retraso</strong> con respecto a su fecha límite planificada y continúan abiertas:</p>
+
+        <div style="margin: 20px 0; width: 100%; overflow-x:hidden;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; min-width: 540px; ">
+                <thead>
+                    <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="padding: 10px; border: 1px solid #dee2e6; width: 15%;">Código AC</th>
+                        <th style="padding: 10px; border: 1px solid #dee2e6; width: 35%;">Descripción</th>
+                        <th style="padding: 10px; border: 1px solid #dee2e6; width: 15%;">Vencimiento</th>
+                        <th style="padding: 10px; border: 1px solid #dee2e6; width: 35%;">Responsable(s) y Contacto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in acciones %}
+                    <tr style="border-bottom: 1px solid #dee2e6;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: bold; color: #2c3e50;">
+                            {{ item.codificador }}
+                        </td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">
+                            {{ item.descripcion }}
+                        </td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6; color: #d9534f; font-weight: bold; white-space: nowrap;">
+                            {{ item.fecha }}
+                        </td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">
+                            <ul style="margin: 0; padding-left: 15px;">
+                                {% for resp in item.responsables %}
+                                <li style="margin-bottom: 4px;">{{ resp }}</li>
+                                {% endfor %}
+                            </ul>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <p style="margin: 20px 0 0 0; font-size: 14px;">
+            Le solicitamos coordinar directamente con los responsables asignados para hacer el seguimiento correspondiente y regularizar el estatus de estas actividades.
+        </p>
+    </td>
+</tr>
+{% endblock %}

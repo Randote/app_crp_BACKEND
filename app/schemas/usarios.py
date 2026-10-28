@@ -18,10 +18,11 @@ class UsuarioCreate(UsuarioBase):
 class UsuarioResponse(UsuarioBase):
     id: int
     creado_en: datetime
+    activo: bool
 
     class Config:
-        from_attributes = True  # Para Pydantic V2 (o 'orm_mode' en V1)
-
+        from_attributes = True  
+        
 class UsuarioPerfilOut(BaseModel):
     id: int
     usuario: str
@@ -42,7 +43,10 @@ class UsuarioCardOut(BaseModel):
     apellido: str
     cargo: str
     email: str
-    ficha:int
+    ficha: int
+    asignadas: int = 0
+    cerradas: int = 0
+    vencidas: int = 0
 
     class Config:
         from_attributes = True

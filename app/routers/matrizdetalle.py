@@ -10,8 +10,6 @@ from datetime import date
 router = APIRouter()
 
 
-
-
 @router.get("/matriz-completa", response_model=list[MatrizCompletaOut])
 def listar_matriz_completa(db: Session = Depends(get_db)):
     todas = (
@@ -20,14 +18,16 @@ def listar_matriz_completa(db: Session = Depends(get_db)):
         .options(
             joinedload(AccionCorrectiva.plan_accion_grupos)
             .joinedload(PlanAccionGrupo.acciones)
-            .joinedload(PlanAccionAccion.estatus_accion)
+            .joinedload(PlanAccionAccion.estatus_accion),
+            joinedload(AccionCorrectiva.plan_accion_grupos)
+            .joinedload(PlanAccionGrupo.acciones)
+            .joinedload(PlanAccionAccion.responsables),  
         )
         .all()
     )
-
+ 
     hoy = date.today()
-    print(hoy)
-
+ 
     resultado = []
     for ac in todas:
         acciones_planas = []
@@ -35,22 +35,22 @@ def listar_matriz_completa(db: Session = Depends(get_db)):
             for accion in grupo.acciones:
                 est = accion.estatus_accion
                 estatus_real = est.estatus if est else "Abierto"
-
+ 
                 if estatus_real == "Abierto" and accion.fecha and accion.fecha < hoy:
                     estatus_final = "Vencido"
                 else:
                     estatus_final = estatus_real
-
+ 
                 acciones_planas.append({
                     "accion": accion.descripcion,
                     "tipo_accion": est.tipo_accion if est else None,
-                    "tipo_hallazgo": est.tipo_hallazgo if est else None,
-                    "responsable": accion.responsable,
+                    "tipo_hallazgo": ac.tipo_hallazgo if est else None,
+                    "responsables": [r.nombre for r in accion.responsables if r.nombre],
                     "fecha_cierre": accion.fecha,
                     "estatus": estatus_final,
                     "observaciones": est.observaciones if est else None,
                 })
-
+ 
         if acciones_planas:
             resultado.append({
                 "codificador": ac.codificador,
@@ -59,5 +59,6 @@ def listar_matriz_completa(db: Session = Depends(get_db)):
                 "descripcion_hallazgo": ac.problema_detectado,
                 "acciones": acciones_planas,
             })
-
+ 
     return resultado
+ 

@@ -23,6 +23,7 @@ class AccionCorrectivaCreate(BaseModel):
     especificacion: Optional[str] = None
     problema_detectado: Optional[str] = None
     que_ocurre: Optional[str] = None
+    tipo_hallazgo: Optional[str] = None 
     cuando_ocurre: Optional[str] = None
     donde_ocurre: Optional[str] = None
     usa_ishikawa: bool = False
@@ -100,6 +101,7 @@ class AccionCorrectivaUpdate(BaseModel):
     participantes: Optional[str] = None
     origen_deteccion: Optional[str] = None
     especificacion: Optional[str] = None
+    tipo_hallazgo: Optional[str] = None 
     problema_detectado: Optional[str] = None
     que_ocurre: Optional[str] = None
     cuando_ocurre: Optional[str] = None
@@ -110,3 +112,7 @@ class AccionCorrectivaUpdate(BaseModel):
     acciones_inmediatas: list[AccionInmediataItem] = []
     ishikawa: Optional[IshikawaUpdateItem] = None
     analisis_5porques: list[Analisis5PorquesItem] = []
+    
+    
+class TipoHallazgoUpdate(BaseModel):
+    tipo_hallazgo: Optional[str] = None

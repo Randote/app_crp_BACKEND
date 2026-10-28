@@ -14,12 +14,12 @@ class CausaIshikawaIn(BaseModel):
             raise ValueError("La causa no puede estar vacía.")
         return v.strip()
 
-    @field_validator("valor")
-    @classmethod
-    def valor_positivo(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("El valor debe ser mayor a 0.")
-        return v
+    # @field_validator("valor")
+    # @classmethod
+    # def valor_positivo(cls, v: int) -> int:
+    #     if v <= 0:
+    #         raise ValueError("El valor debe ser mayor a 0.")
+    #     return v
 
 
 class IshikawaIn(BaseModel):

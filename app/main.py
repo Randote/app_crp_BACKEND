@@ -1,3 +1,4 @@
+import os
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +11,7 @@ from app.routers import matrizdetalle
 from app.routers import planaccion
 from app.routers import bitacora
 from app.routers import dashboard_indicadores
+from app.routers import supervisores
 from app.email.scheduler import iniciar_scheduler
 
 app = FastAPI(
@@ -18,9 +20,16 @@ app = FastAPI(
     root_path="/api_crp"
 )
 
+
+
+os.makedirs("logs", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("logs/app.log", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
 )
 
 @app.on_event("startup")
@@ -35,17 +44,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/")
-def root():
-    return {"message": "funcionando bebe"}
 
 app.include_router(prueba.router, prefix="/api/prueba", tags=["Prueba"])
 app.include_router(planaccion.router, prefix="/api/plan-accion", tags=["Plan de Acción"])
@@ -56,3 +54,4 @@ app.include_router(matrizbasic.router, prefix="/api/matrizbasic", tags=["Matriz"
 app.include_router(matrizdetalle.router, prefix="/api/matrizdetalle", tags=["Matriz"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Auth"])
 app.include_router(dashboard_indicadores.router, prefix="/api/reportes", tags=["Reportes"])
+app.include_router(supervisores.router, prefix="/api/supervisores", tags=["Supervisores"])

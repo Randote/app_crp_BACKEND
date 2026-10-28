@@ -2,62 +2,19 @@ import logging
 from collections import defaultdict
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import text
 from app.database import SessionLocal
-from app.email.notifications import notify_recordatorio_asignacion, notify_acciones_vencidas, notify_recordatorio_verificacion, notify_verificaciones_vencidas
+import asyncio 
+from app.models.planaccion import PlanAccionAccion
+from app.email.notifications import (
+    notify_recordatorio_asignacion,
+    notify_acciones_vencidas,
+    notify_recordatorio_verificacion,
+    notify_verificaciones_vencidas,
+    notify_supervisor_acciones_vencidas
+)
 
 logger = logging.getLogger("email")
-
-# Tareas abiertas que AÚN NO vencen -> resumen semanal (lunes)
-QUERY_RECORDATORIO = text("""
-    SELECT pa.email, pa.responsable, pa.descripcion, pa.fecha, ac.codificador
-    FROM plan_accion_acciones pa
-    JOIN estatus_acciones ea ON ea.plan_accion_accion_id = pa.id
-    JOIN plan_accion_grupos pg ON pg.id = pa.grupo_id
-    JOIN acciones_correctivas ac ON ac.id = pg.accion_correctiva_id
-    WHERE pa.fecha >= CURRENT_DATE
-      AND ea.estatus = 'Abierto'
-      AND pa.email IS NOT NULL AND pa.email <> ''
-""")
-
-# Tareas abiertas que YA vencieron -> aviso diario
-QUERY_VENCIDAS = text("""
-    SELECT pa.email, pa.responsable, pa.descripcion, pa.fecha, ac.codificador
-    FROM plan_accion_acciones pa
-    JOIN estatus_acciones ea ON ea.plan_accion_accion_id = pa.id
-    JOIN plan_accion_grupos pg ON pg.id = pa.grupo_id
-    JOIN acciones_correctivas ac ON ac.id = pg.accion_correctiva_id
-    WHERE pa.fecha < CURRENT_DATE
-      AND ea.estatus = 'Abierto'
-      AND pa.email IS NOT NULL AND pa.email <> ''
-""")
-
-
-# Verificaciones abiertas que AÚN NO vencen -> resumen semanal (lunes)
-QUERY_RECORDATORIO_VERIFICACION = text("""
-    SELECT pa.metodologia_email AS email, pa.metodologia_responsable AS responsable,
-           pa.metodologia_descripcion AS descripcion, pa.metodologia_fecha AS fecha, ac.codificador
-    FROM plan_accion_acciones pa
-    JOIN estatus_acciones ea ON ea.plan_accion_accion_id = pa.id
-    JOIN plan_accion_grupos pg ON pg.id = pa.grupo_id
-    JOIN acciones_correctivas ac ON ac.id = pg.accion_correctiva_id
-    WHERE pa.metodologia_fecha >= CURRENT_DATE
-      AND ea.estatus = 'Abierto'
-      AND pa.metodologia_email IS NOT NULL AND pa.metodologia_email <> ''
-""")
-
-# Verificaciones abiertas que YA vencieron -> aviso diario
-QUERY_VENCIDAS_VERIFICACION = text("""
-    SELECT pa.metodologia_email AS email, pa.metodologia_responsable AS responsable,
-           pa.metodologia_descripcion AS descripcion, pa.metodologia_fecha AS fecha, ac.codificador
-    FROM plan_accion_acciones pa
-    JOIN estatus_acciones ea ON ea.plan_accion_accion_id = pa.id
-    JOIN plan_accion_grupos pg ON pg.id = pa.grupo_id
-    JOIN acciones_correctivas ac ON ac.id = pg.accion_correctiva_id
-    WHERE pa.metodologia_fecha < CURRENT_DATE
-      AND ea.estatus = 'Abierto'
-      AND pa.metodologia_email IS NOT NULL AND pa.metodologia_email <> ''
-""")
+scheduler = AsyncIOScheduler()
 
 
 def _agrupar_por_email(filas):
@@ -72,11 +29,12 @@ def _agrupar_por_email(filas):
         })
     return grupos
 
+
 async def job_recordatorio_asignacion():
     """Corre los lunes: resumen de tareas abiertas que todavía no vencen."""
     db = SessionLocal()
     try:
-        filas = db.execute(QUERY_RECORDATORIO).fetchall()
+        filas = PlanAccionAccion.obtener_para_notificaciones(db, vencidas=False)
         grupos = _agrupar_por_email(filas)
         for email, items in grupos.items():
             await notify_recordatorio_asignacion(
@@ -95,7 +53,7 @@ async def job_avisos_vencidos():
     """Corre todos los días: aviso de tareas abiertas ya vencidas."""
     db = SessionLocal()
     try:
-        filas = db.execute(QUERY_VENCIDAS).fetchall()
+        filas = PlanAccionAccion.obtener_para_notificaciones(db, vencidas=True)
         grupos = _agrupar_por_email(filas)
         for email, items in grupos.items():
             await notify_acciones_vencidas(
@@ -103,6 +61,7 @@ async def job_avisos_vencidos():
                 responsable_nombre=items[0]["responsable"],
                 items=items,
             )
+            await asyncio.sleep(1)
         logger.info(f"[scheduler] job_avisos_vencidos: {len(grupos)} correo(s) procesado(s)")
     except Exception as e:
         logger.error(f"[scheduler] Error en job_avisos_vencidos: {e}")
@@ -114,7 +73,7 @@ async def job_recordatorio_verificacion():
     """Corre los lunes: resumen para VERIFICADORES de tareas que aún no vencen."""
     db = SessionLocal()
     try:
-        filas = db.execute(QUERY_RECORDATORIO_VERIFICACION).fetchall()
+        filas = PlanAccionAccion.obtener_verificaciones_para_notificaciones(db, vencidas=False)
         grupos = _agrupar_por_email(filas)
         for email, items in grupos.items():
             await notify_recordatorio_verificacion(
@@ -122,6 +81,7 @@ async def job_recordatorio_verificacion():
                 responsable_nombre=items[0]["responsable"],
                 items=items,
             )
+            await asyncio.sleep(1)
         logger.info(f"[scheduler] job_recordatorio_verificacion: {len(grupos)} correo(s) procesado(s)")
     except Exception as e:
         logger.error(f"[scheduler] Error en job_recordatorio_verificacion: {e}")
@@ -129,11 +89,12 @@ async def job_recordatorio_verificacion():
         db.close()
 
 
+
 async def job_verificaciones_vencidas():
     """Corre todos los días: aviso para VERIFICADORES de tareas ya vencidas."""
     db = SessionLocal()
     try:
-        filas = db.execute(QUERY_VENCIDAS_VERIFICACION).fetchall()
+        filas = PlanAccionAccion.obtener_verificaciones_para_notificaciones(db, vencidas=True)
         grupos = _agrupar_por_email(filas)
         for email, items in grupos.items():
             await notify_verificaciones_vencidas(
@@ -141,21 +102,78 @@ async def job_verificaciones_vencidas():
                 responsable_nombre=items[0]["responsable"],
                 items=items,
             )
+            await asyncio.sleep(1)
         logger.info(f"[scheduler] job_verificaciones_vencidas: {len(grupos)} correo(s) procesado(s)")
     except Exception as e:
         logger.error(f"[scheduler] Error en job_verificaciones_vencidas: {e}")
     finally:
         db.close()
+        
+
+async def job_supervisor_acciones_vencidas():
+    """Corre todos los días: avisa a los supervisores de área si una acción tiene 5+ días vencida."""
+    db = SessionLocal()
+    try:
+        resultados = PlanAccionAccion.obtener_supervisores_acciones_vencidas(db)
+
+        supervisores_agrupados = {}
+
+        for item in resultados:
+            email_sup = item.supervisor_email
+            if not email_sup:
+                continue
+
+            if email_sup not in supervisores_agrupados:
+                supervisores_agrupados[email_sup] = {
+                    "nombre": item.supervisor_nombre,
+                    "acciones": {}
+                }
+
+            accion = item.PlanAccionAccion
+            accion_id = accion.id
+
+            # Si la acción ya está en la lista del supervisor, solo agregamos al responsable si no está repetido
+            if accion_id not in supervisores_agrupados[email_sup]["acciones"]:
+                supervisores_agrupados[email_sup]["acciones"][accion_id] = {
+                    "id": accion_id,
+                    "descripcion": accion.descripcion,
+                    "fecha": str(accion.fecha),
+                    "proceso": item.proceso,
+                    "codificador": item.codificador,
+                    "responsables": []
+                }
+            
+            # Añadir responsable y su correo si tiene
+            resp_info = f"{item.nombre_responsable} ({item.email_responsable})"
+            if resp_info not in supervisores_agrupados[email_sup]["acciones"][accion_id]["responsables"]:
+                supervisores_agrupados[email_sup]["acciones"][accion_id]["responsables"].append(resp_info)
+
+        # Enviar correos agrupados a cada supervisor convirtiendo el dict de acciones a lista
+        for email_sup, info in supervisores_agrupados.items():
+            acciones_lista = list(info["acciones"].values())
+            await notify_supervisor_acciones_vencidas(
+                destinatario_email=email_sup,
+                supervisor_nombre=info["nombre"],
+                acciones=acciones_lista,
+            )
+            await asyncio.sleep(1)
+
+        logger.info(f"[scheduler] job_supervisor_acciones_vencidas: {len(supervisores_agrupados)} supervisor(es) notificado(s)")
+    except Exception as e:
+        logger.error(f"[scheduler] Error en job_supervisor_acciones_vencidas: {e}")
+    finally:
+        db.close()
 
 
-scheduler = AsyncIOScheduler()
+
+
 
 
 
 def iniciar_scheduler():
     scheduler.add_job(
         job_recordatorio_asignacion,
-        CronTrigger(day_of_week="mon", hour=6, minute=0),
+        CronTrigger(day_of_week="mon", hour=6, minute=30),
         id="recordatorio_asignacion",
         replace_existing=True,
         misfire_grace_time=60,
@@ -163,7 +181,7 @@ def iniciar_scheduler():
     
     scheduler.add_job(
         job_avisos_vencidos,
-        CronTrigger(hour=6, minute=0),
+        CronTrigger(day_of_week="mon-fri", hour=6, minute=15),
         id="avisos_vencidos",
         replace_existing=True,
         misfire_grace_time=60,
@@ -171,16 +189,24 @@ def iniciar_scheduler():
     
     scheduler.add_job(
         job_recordatorio_verificacion,
-        CronTrigger(day_of_week="mon", hour=6, minute=0),
+        CronTrigger(day_of_week="mon", hour=6, minute=30),
         id="recordatorio_verificacion",
         replace_existing=True,
-        misfire_grace_time=3,
+        misfire_grace_time=60,
     )
     
     scheduler.add_job(
         job_verificaciones_vencidas,
-        CronTrigger(hour=6, minute=0),
+        CronTrigger(day_of_week="mon-fri", hour=6, minute=15),
         id="verificaciones_vencidas",
+        replace_existing=True,
+        misfire_grace_time=60,
+    )
+    
+    scheduler.add_job(
+        job_supervisor_acciones_vencidas,
+        CronTrigger(day_of_week="mon-fri", hour=6, minute=40), 
+        id="Supervisor_vencidas",
         replace_existing=True,
         misfire_grace_time=60,
     )

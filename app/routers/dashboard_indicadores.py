@@ -4,7 +4,7 @@ from app.database import get_db
 from app.models.accionescorrectivas import AccionCorrectiva
 from app.models.planaccion import PlanAccionAccion
 from app.models.estados import EstatusAccion
-from datetime import datetime
+from datetime import datetime, date
 
 
 
@@ -121,7 +121,7 @@ def acciones_por_tipo(anio: int = datetime.now().year, db: Session = Depends(get
 
 @router.get("/indicadores/hallazgos-por-tipo")
 def hallazgos_por_tipo(anio: int = datetime.now().year, db: Session = Depends(get_db)):
-    resultados = EstatusAccion.contar_por_mes_y_campo(db, "tipo_hallazgo", anio)
+    resultados = AccionCorrectiva.contar_por_mes_tipo_hallazgo(db, anio)
     return _armar_series(resultados, TIPOS_HALLAZGO)
 
 
@@ -145,3 +145,20 @@ def no_conformidades_por_proceso(
     data.sort(key=lambda x: x["cantidad"], reverse=True)
 
     return {"total": total, "procesos": data}
+
+@router.get("/indicadores/no-conformidades-por-proceso/detalle")
+def detalle_no_conformidades(proceso: str, db: Session = Depends(get_db)):
+    resultados = EstatusAccion.detalle_no_conformidades_por_proceso(db, proceso)
+    hoy = date.today()
+
+    detalle = []
+    for codificador, descripcion, fecha in resultados:
+        dias_vencido = (hoy - fecha).days if fecha and fecha < hoy else 0
+        detalle.append({
+            "codificador": codificador,
+            "descripcion": descripcion,
+            "fecha": fecha.isoformat() if fecha else None,
+            "dias_vencido": dias_vencido,
+        })
+
+    return {"proceso": proceso, "acciones": detalle}

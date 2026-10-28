@@ -1,13 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks
+from datetime import date
+from sqlalchemy import func, case, and_
+from app.models.planaccion import PlanAccionAccion
+from app.models.estados import EstatusAccion
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models.usuarios import Usuario
 from app.models.sesiones import Sesion
 from app.schemas.auth import LoginRequest, TokenResponse, AccessTokenResponse
+from app.models.resetcontraseña import PasswordResetCode
 from app.auth.jwt_handler import crear_access_token
 from app.auth.dependencias import get_current_user 
 from app.schemas.usarios import UsuarioUpdateSelf, CambiarPasswordRequest, UsuarioPerfilOut, UsuarioCardOut, UsuarioPublicoOut
+from app.schemas.auth import OlvidePasswordRequest, RestablecerPasswordRequest
+from app.email.notifications import notify_codigo_recuperacion
 
 
 router = APIRouter()
@@ -98,12 +105,31 @@ def me(current_user: Usuario = Depends(get_current_user)):
 def listar_usuarios_publico(db: Session = Depends(get_db)):
     return Usuario.obtener_todos(db)
 
+
 @router.get("/usuarios", response_model=List[UsuarioCardOut])
 def listar_usuarios(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)  # protegido, solo usuarios logueados
+    current_user: Usuario = Depends(get_current_user)
 ):
-    return Usuario.obtener_todos(db)
+    conteo = PlanAccionAccion.contar_actividades_responsable(db)
+    mapa = {email: {"asignadas": a, "cerradas": c, "vencidas": v} for email, a, c, v in conteo}
+
+    usuarios = Usuario.obtener_todos(db)
+
+    resultado = []
+    for u in usuarios:
+        stats = mapa.get(u.email, {"asignadas": 0, "cerradas": 0, "vencidas": 0})
+        resultado.append({
+            "id": u.id,
+            "nombre": u.nombre,
+            "apellido": u.apellido,
+            "email": u.email,
+            "cargo": u.cargo,
+            "ficha": u.ficha,
+            **stats
+        })
+
+    return resultado
 
 
 
@@ -130,3 +156,46 @@ def cambiar_mi_password(
 
     Usuario.actualizar(db, current_user.id, password=payload.password_nueva)
     return {"message": "Contraseña actualizada."}
+
+
+
+#RESET DE CONTRASEÑA
+
+@router.post("/olvide-password")
+def olvide_password(
+    payload: OlvidePasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
+    usuario = Usuario.obtener_por_email(db, payload.email)
+ 
+    if usuario:
+        _, codigo = PasswordResetCode.generar(db, usuario.id)
+        print(f"🔑 CÓDIGO DE PRUEBA: {codigo}")
+        background_tasks.add_task(
+            notify_codigo_recuperacion,
+            destinatario_email=usuario.email,
+            nombre=usuario.nombre,
+            codigo=codigo,
+        )
+ 
+    return {"detail": "Si el correo existe en el sistema, se envió un código de verificación."}
+ 
+ 
+@router.post("/restablecer-password")
+def restablecer_password(payload: RestablecerPasswordRequest, db: Session = Depends(get_db)):
+    usuario = Usuario.obtener_por_email(db, payload.email)
+    if not usuario:
+        raise HTTPException(status_code=400, detail="Código inválido o expirado.")
+ 
+    entrada = PasswordResetCode.verificar(db, usuario.id, payload.codigo)
+    if not entrada:
+        raise HTTPException(status_code=400, detail="Código inválido o expirado.")
+ 
+    Usuario.actualizar(db, usuario.id, password=payload.password_nueva)
+ 
+    db.delete(entrada)
+ 
+    db.query(Sesion).filter(Sesion.usuario_id == usuario.id).delete()
+    db.commit()
+    return {"detail": "Contraseña actualizada correctamente."}

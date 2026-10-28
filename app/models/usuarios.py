@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import Session
 from app.database import Base
 from passlib.context import CryptContext
 from typing import Optional, List, Dict, Any
@@ -18,7 +19,8 @@ class Usuario(Base):
     email = Column(String(255), nullable=False, unique=True, index=True)
     password_hash = Column(String(255), nullable=False)
     cargo = Column(String(100), nullable=False)
-    permisos = Column(ARRAY(String), nullable=False, server_default="{}")
+    permisos = Column(ARRAY(String), nullable=True, server_default="{}")
+    activo = Column(Boolean, nullable=False, default=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
@@ -156,3 +158,20 @@ class Usuario(Base):
     def obtener_todos(cls, db_session) -> List["Usuario"]:
         """Devuelve todos los usuarios registrados, ordenados por nombre."""
         return db_session.query(cls).order_by(cls.nombre, cls.apellido).all()
+
+
+    @classmethod
+    def filtrar_activos_por_emails(cls, db: Session, emails: list[str]):
+        """Filtra y retorna solo los usuarios activos que coincidan con la lista de correos."""
+        if not emails:
+            return []
+        return db.query(cls).filter(cls.email.in_(emails), cls.activo == True).all()
+
+    @classmethod
+    def esta_activo_por_email(cls, db: Session, email: str) -> bool:
+        """Verifica si el usuario existe y su estatus activo es True."""
+        if not email:
+            return False
+        usuario = db.query(cls).filter(cls.email == email, cls.activo == True).first()
+        return usuario is not None
+    

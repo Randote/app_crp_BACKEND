@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, Date, DateTime, ForeignKey, func, extract
 from sqlalchemy.orm import relationship, Session, selectinload
 from datetime import date
+import re
 from app.database import Base
 from app.models.ishikawa import IshikawaAnalisis
 from app.models.why5 import Analisis5Porques
@@ -26,6 +27,7 @@ class AccionCorrectiva(Base):
     donde_ocurre = Column(Text, nullable=True)
     usa_ishikawa = Column(Boolean, nullable=False, default=False)
     usa_5porques = Column(Boolean, nullable=False, default=False)
+    tipo_hallazgo = Column(String(50), nullable=True)
     creado_en = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     actualizado_en = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
 
@@ -35,15 +37,32 @@ class AccionCorrectiva(Base):
     plan_accion_grupos = relationship("PlanAccionGrupo", back_populates="accion_correctiva",cascade="all, delete-orphan", order_by="PlanAccionGrupo.orden")
 
     @staticmethod
-    def _generar_codificador(db: Session) -> str:
-        anio = date.today().year
+    def _generar_codificador(db: Session, proceso_afectado: str, origen_deteccion: str) -> str:
+        match = re.search(r'\(([^)]+)\)', proceso_afectado)
+        sigla_proceso = match.group(1) if match else "GEN"
+
+        abreviaturas_origen = {
+            'Auditoria Interna': 'AI',
+            'Auditoria Externa': 'AE',
+            'Quejas y Reclamos': 'QR',
+            'Auditoria Proceso/Producto': 'APP',
+            'Producto no Conforme': 'PNC',
+            'Indicadores': 'IND',
+            'Otro': 'OT'
+        }
+        sigla_origen = abreviaturas_origen.get(origen_deteccion, 'GEN')
+
+        prefijo_base = f"{sigla_proceso}-{sigla_origen}-"
+
         ultimo = (
             db.query(func.count(AccionCorrectiva.id))
-            .filter(AccionCorrectiva.codificador.like(f"CRP-{anio}-%"))
+            .filter(AccionCorrectiva.codificador.like(f"{prefijo_base}%"))
             .scalar()
         )
         consecutivo = (ultimo or 0) + 1
-        return f"CRP-{anio}-{consecutivo}"
+
+        return f"{prefijo_base}{consecutivo}"
+
 
 
     @classmethod
@@ -51,8 +70,12 @@ class AccionCorrectiva(Base):
 
         if kwargs.get("fecha_deteccion") and kwargs["fecha_deteccion"] > date.today():
             raise ValueError("La fecha de detección no puede ser una fecha futura.")
+        
+        proceso = kwargs.get("proceso_afectado", "")
+        origen = kwargs.get("origen_deteccion", "")
+        nuevo_codigo = cls._generar_codificador(db, proceso, origen)
 
-        nueva = cls(codificador=cls._generar_codificador(db), **kwargs)
+        nueva = cls(codificador=nuevo_codigo, **kwargs)
         db.add(nueva)
         db.flush()
 
@@ -104,8 +127,7 @@ class AccionCorrectiva(Base):
                 .first()
             )
             
-            
-  
+
 
     def actualizar(
         self,
@@ -113,7 +135,7 @@ class AccionCorrectiva(Base):
         acciones_inmediatas: list = None,
         ishikawa: dict = None,
         analisis_5porques: list = None,
-        usuario=None,   # 👈 nuevo parámetro
+        usuario=None, 
         **kwargs
     ) -> "AccionCorrectiva":
         if kwargs.get("fecha_deteccion") and kwargs["fecha_deteccion"] > date.today():
@@ -196,7 +218,20 @@ class AccionCorrectiva(Base):
         )
         return dict(resultados)
     
-    
+    @classmethod
+    def contar_por_mes_tipo_hallazgo(cls, db: Session, anio: int):
+        resultados = (
+            db.query(
+                extract('month', cls.fecha_deteccion).label('mes'),
+                cls.tipo_hallazgo.label('valor'),
+                func.count(cls.id).label('cantidad')
+            )
+            .filter(extract('year', cls.fecha_deteccion) == anio)
+            .filter(cls.tipo_hallazgo.isnot(None))
+            .group_by('mes', cls.tipo_hallazgo)
+            .all()
+        )
+        return resultados
     
 
 

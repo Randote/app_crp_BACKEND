@@ -8,7 +8,6 @@ class EstatusAccion(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     plan_accion_accion_id = Column(Integer, ForeignKey("plan_accion_acciones.id", ondelete="CASCADE"),nullable=False, unique=True, index=True)
-    tipo_hallazgo = Column(String(40), nullable=True,)
     tipo_accion = Column(String(40), nullable=True,)
     estatus = Column(String(20), nullable=False,)  
     observaciones = Column(Text, nullable=True)
@@ -87,10 +86,32 @@ class EstatusAccion(Base):
             .join(PlanAccionAccion, cls.plan_accion_accion_id == PlanAccionAccion.id)
             .join(PlanAccionGrupo, PlanAccionAccion.grupo_id == PlanAccionGrupo.id)
             .join(AccionCorrectiva, PlanAccionGrupo.accion_correctiva_id == AccionCorrectiva.id)
-            .filter(cls.tipo_hallazgo == "No Conforme")
+            .filter(AccionCorrectiva.tipo_hallazgo == "No Conforme")
         )
 
         if solo_abiertas:
             query = query.filter(cls.estatus == "Abierto")
 
         return dict(query.group_by(AccionCorrectiva.proceso_afectado).all())
+    
+    @classmethod
+    def detalle_no_conformidades_por_proceso(cls, db: Session, proceso: str):
+        from app.models.accionescorrectivas import AccionCorrectiva
+        from app.models.planaccion import PlanAccionGrupo, PlanAccionAccion
+
+        resultados = (
+            db.query(
+                AccionCorrectiva.codificador,
+                PlanAccionAccion.descripcion,
+                PlanAccionAccion.fecha,
+            )
+            .select_from(cls)
+            .join(PlanAccionAccion, cls.plan_accion_accion_id == PlanAccionAccion.id)
+            .join(PlanAccionGrupo, PlanAccionAccion.grupo_id == PlanAccionGrupo.id)
+            .join(AccionCorrectiva, PlanAccionGrupo.accion_correctiva_id == AccionCorrectiva.id)
+            .filter(AccionCorrectiva.tipo_hallazgo == "No Conforme")
+            .filter(cls.estatus == "Abierto")
+            .filter(AccionCorrectiva.proceso_afectado == proceso)
+            .all()
+        )
+        return resultados
