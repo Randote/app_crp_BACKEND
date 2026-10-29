@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, BackgroundTasks,status
 from datetime import date
 from sqlalchemy import func, case, and_
 from app.models.planaccion import PlanAccionAccion
@@ -39,6 +39,12 @@ def login(payload: LoginRequest, request: Request, response: Response, db: Sessi
     usuario = Usuario.obtener_por_usuario(db, payload.usuario)
     if not usuario or not usuario.verify_password(payload.password):
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Tu cuenta está inactiva. Comunícate con el administrador."
+        )
 
     sesion, refresh_plano = Sesion.crear(
         db,
@@ -103,7 +109,7 @@ def me(current_user: Usuario = Depends(get_current_user)):
 
 @router.get("/usuarios/publico", response_model=List[UsuarioPublicoOut])
 def listar_usuarios_publico(db: Session = Depends(get_db)):
-    return Usuario.obtener_todos(db)
+    return Usuario.obtener_todos(db, solo_activos=True)
 
 
 @router.get("/usuarios", response_model=List[UsuarioCardOut])
@@ -114,7 +120,7 @@ def listar_usuarios(
     conteo = PlanAccionAccion.contar_actividades_responsable(db)
     mapa = {email: {"asignadas": a, "cerradas": c, "vencidas": v} for email, a, c, v in conteo}
 
-    usuarios = Usuario.obtener_todos(db)
+    usuarios = Usuario.obtener_todos(db, solo_activos=True)
 
     resultado = []
     for u in usuarios:

@@ -143,8 +143,8 @@ class Usuario(Base):
 
     @classmethod
     def obtener_todos_emails(cls, db_session) -> list[str]:
-        """Devuelve el email de todos los usuarios registrados."""
-        resultados = db_session.query(cls.email).all()
+        """Devuelve el email únicamente de los usuarios activos."""
+        resultados = db_session.query(cls.email).filter(cls.activo == True).all()
         return [email for (email,) in resultados]
 
 
@@ -155,9 +155,12 @@ class Usuario(Base):
 
 
     @classmethod
-    def obtener_todos(cls, db_session) -> List["Usuario"]:
-        """Devuelve todos los usuarios registrados, ordenados por nombre."""
-        return db_session.query(cls).order_by(cls.nombre, cls.apellido).all()
+    def obtener_todos(cls, db_session, solo_activos: bool = True) -> List["Usuario"]:
+        """Devuelve los usuarios registrados, por defecto solo los activos."""
+        query = db_session.query(cls)
+        if solo_activos:
+            query = query.filter(cls.activo == True)
+        return query.order_by(cls.nombre, cls.apellido).all()
 
 
     @classmethod

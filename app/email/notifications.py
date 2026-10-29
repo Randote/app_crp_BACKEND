@@ -186,9 +186,6 @@ async def notify_accion_asignada(
     codigo_accion: str,
     url_accion: str,
 ):
-    if not _usuario_esta_activo(destinatario_email):
-        logger.info(f"Acción asignada omitida (Usuario inactivo): {destinatario_email}")
-        return False
 
     enviado = await send_email(
         to=[destinatario_email],

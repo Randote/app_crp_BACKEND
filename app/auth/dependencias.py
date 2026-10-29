@@ -38,6 +38,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     if usuario is None:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
+
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tu cuenta está inactiva. Comunícate con el administrador."
+        )
+
     return usuario
 
 def get_admin_user(current_user: Usuario = Depends(get_current_user)) -> Usuario:
