@@ -171,7 +171,7 @@ def olvide_password(
  
     if usuario:
         _, codigo = PasswordResetCode.generar(db, usuario.id)
-        print(f"🔑 CÓDIGO DE PRUEBA: {codigo}")
+        print(f"CÓDIGO DE PRUEBA: {codigo}")
         background_tasks.add_task(
             notify_codigo_recuperacion,
             destinatario_email=usuario.email,

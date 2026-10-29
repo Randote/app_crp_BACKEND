@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.auth.dependencias import get_admin_user
 from app.email.notifications import notify_usuario_registrado
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -19,7 +20,7 @@ async def registrar_usuario(payload: UsuarioCreate, db: Session = Depends(get_db
         
         nuevo_usuario = Usuario.crear(db, **datos_payload)
 
-        url_login = "http://10.10.0.32/app_crp/"  
+        url_login = f"{settings.FRONTEND_URL}/app_crp/"  
         await notify_usuario_registrado(
             destinatario_email=nuevo_usuario.email,
             nombre=f"{nuevo_usuario.nombre} {nuevo_usuario.apellido}",

@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from app.auth.dependencias import get_current_user
 from app.email.notifications import notify_accion_registrada,notify_accion_asignada,notify_verificacion_asignada
+from app.core.config import settings
 
 router = APIRouter()
 
@@ -34,7 +35,7 @@ def registrar_accion_correctiva(
             **data
         )
 
-        url_accion = f"http://10.10.0.32/app_crp/Matriz/{nueva_accion.codificador}"
+        url_accion = f"{settings.FRONTEND_URL}/Matriz/{nueva_accion.codificador}"
 
         destinatarios = Usuario.obtener_todos_emails(db)
 

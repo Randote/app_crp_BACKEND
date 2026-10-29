@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     DEBUG: bool = True
     JWT_SECRET_KEY: str
+    FRONTEND_URL: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
