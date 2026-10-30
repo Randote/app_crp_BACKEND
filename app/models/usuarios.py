@@ -132,14 +132,26 @@ class Usuario(Base):
 
     @classmethod
     def obtener_por_usuario(cls, db_session, nombre_usuario: str) -> Optional["Usuario"]:
-        """Busca por nombre de usuario."""
-        return db_session.query(cls).filter(cls.usuario == nombre_usuario).first()
+        """Busca por nombre de usuario, sin distinguir mayúsculas ni espacios."""
+        if not nombre_usuario or not nombre_usuario.strip():
+            return None
+        return (
+            db_session.query(cls)
+            .filter(func.lower(cls.usuario) == nombre_usuario.strip().lower())
+            .first()
+        )
 
 
     @classmethod
     def obtener_por_email(cls, db_session, email: str) -> Optional["Usuario"]:
-        """Busca por email."""
-        return db_session.query(cls).filter(cls.email == email).first()
+        """Busca por email, sin distinguir mayúsculas ni espacios."""
+        if not email:
+            return None
+        return (
+            db_session.query(cls)
+            .filter(func.lower(cls.email) == email.strip().lower())
+            .first()
+        )
 
     @classmethod
     def obtener_todos_emails(cls, db_session) -> list[str]:
