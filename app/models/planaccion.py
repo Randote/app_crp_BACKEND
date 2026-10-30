@@ -199,6 +199,7 @@ class PlanAccionAccion(Base):
                 cls.fecha <= fecha_limite,
                 PlanAccionResponsable.proceso.isnot(None),
                 PlanAccionResponsable.proceso != "",
+                ProcesoSupervisor.activo == True,
             )
             .all()
         )

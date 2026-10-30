@@ -78,6 +78,11 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         raise HTTPException(status_code=401, detail="Sesión expirada, vuelve a iniciar sesión")
 
     usuario_id = sesion.usuario_id
+    usuario = Usuario.obtener_por_id(db, usuario_id)
+    if not usuario or not usuario.activo:
+        sesion.eliminar(db)
+        raise HTTPException(status_code=403, detail="Tu cuenta está inactiva. Comunícate con el administrador.")
+
     sesion.eliminar(db)
     nueva_sesion, nuevo_refresh_plano = Sesion.crear(db, usuario_id=usuario_id, user_agent=request.headers.get("user-agent", ""))
 
@@ -175,7 +180,7 @@ def olvide_password(
 ):
     usuario = Usuario.obtener_por_email(db, payload.email)
  
-    if usuario:
+    if usuario and usuario.activo:
         _, codigo = PasswordResetCode.generar(db, usuario.id)
         print(f"CÓDIGO DE PRUEBA: {codigo}")
         background_tasks.add_task(
@@ -191,7 +196,7 @@ def olvide_password(
 @router.post("/restablecer-password")
 def restablecer_password(payload: RestablecerPasswordRequest, db: Session = Depends(get_db)):
     usuario = Usuario.obtener_por_email(db, payload.email)
-    if not usuario:
+    if not usuario or not usuario.activo:
         raise HTTPException(status_code=400, detail="Código inválido o expirado.")
  
     entrada = PasswordResetCode.verificar(db, usuario.id, payload.codigo)

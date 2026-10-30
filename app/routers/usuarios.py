@@ -1,4 +1,5 @@
 from app.models.usuarios import Usuario
+from app.models.sesiones import Sesion
 from app.schemas.usarios import UsuarioCreate, UsuarioResponse, UsuarioUpdateAdmin, UsuarioPerfilOut, CambiarPasswordAdminRequest
 from app.database import get_db
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -95,13 +96,30 @@ def cambiar_estatus_usuario(
     usuario_id: int, 
     data: dict, 
     db: Session = Depends(get_db),
-    _admin: Usuario = Depends(get_admin_user)
+    admin: Usuario = Depends(get_admin_user)
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
-    
-    usuario.activo = data.get("activo", True)
+
+    nuevo_activo = bool(data.get("activo", True))
+
+    if usuario.activo and not nuevo_activo:
+        if usuario.id == admin.id:
+            raise HTTPException(status_code=400, detail="No puedes desactivar tu propia cuenta.")
+
+        if usuario.cargo == "Admin":
+            otros_admins = db.query(Usuario).filter(
+                Usuario.cargo == "Admin",
+                Usuario.activo == True,
+                Usuario.id != usuario.id
+            ).count()
+            if otros_admins == 0:
+                raise HTTPException(status_code=400, detail="Debe quedar al menos un administrador activo.")
+
+        Sesion.revocar_todas_de_usuario(db, usuario.id)
+
+    usuario.activo = nuevo_activo
     db.commit()
     db.refresh(usuario)
     return {"mensaje": "Estatus actualizado con éxito", "activo": usuario.activo}

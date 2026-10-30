@@ -16,7 +16,7 @@ def _usuario_esta_activo(email: str) -> bool:
         return Usuario.esta_activo_por_email(db, email)
     except Exception as e:
         logger.error(f"Error verificando estatus de usuario {email}: {e}")
-        return True
+        return False
     finally:
         db.close()
 
@@ -30,7 +30,7 @@ def _supervisor_esta_activo(email: str) -> bool:
         return ProcesoSupervisor.esta_activo_por_email(db, email)
     except Exception as e:
         logger.error(f"Error verificando estatus de supervisor {email}: {e}")
-        return True
+        return False
     finally:
         db.close()
 
@@ -186,6 +186,9 @@ async def notify_accion_asignada(
     codigo_accion: str,
     url_accion: str,
 ):
+    if not _usuario_esta_activo(destinatario_email):
+        logger.info(f"Acción asignada omitida (Usuario inactivo): {destinatario_email}")
+        return False
 
     enviado = await send_email(
         to=[destinatario_email],
